@@ -130,20 +130,20 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
       <div class="pkg-card" id="pkg-starter" onclick="selectPackage('starter')">
         <div class="pkg-check">✓</div>
         <div class="pkg-name">Starter</div>
-        <div class="pkg-price">$49<span> USD</span></div>
+        <div class="pkg-price">£39<span> GBP</span></div>
         <div class="pkg-desc">7 days in feed · ~5,000 impressions<br>Great for local businesses making their first move.</div>
       </div>
       <div class="pkg-card popular" id="pkg-explorer" onclick="selectPackage('explorer')">
         <div class="pkg-popular-tag">Most popular</div>
         <div class="pkg-check">✓</div>
         <div class="pkg-name">Explorer</div>
-        <div class="pkg-price">$99<span> USD</span></div>
+        <div class="pkg-price">£79<span> GBP</span></div>
         <div class="pkg-desc">14 days in feed · ~15,000 impressions<br>Reach travellers across your region.</div>
       </div>
       <div class="pkg-card" id="pkg-destination" onclick="selectPackage('destination')">
         <div class="pkg-check">✓</div>
         <div class="pkg-name">Destination</div>
-        <div class="pkg-price">$199<span> USD</span></div>
+        <div class="pkg-price">£159<span> GBP</span></div>
         <div class="pkg-desc">30 days in feed · ~40,000 impressions<br>Maximum exposure for hotels and services.</div>
       </div>
     </div>
@@ -293,9 +293,9 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
 const API = window.LOCATE_API_URL || "https://api.locatecommunity.com";
 
 const packages = {
-  starter:     { name:"Starter",     price:49,  duration:"7 days",  impressions:"~5,000" },
-  explorer:    { name:"Explorer",    price:99,  duration:"14 days", impressions:"~15,000" },
-  destination: { name:"Destination", price:199, duration:"30 days", impressions:"~40,000" }
+  starter:     { name:"Starter",     price:39,  duration:"7 days",  impressions:"~5,000" },
+  explorer:    { name:"Explorer",    price:79,  duration:"14 days", impressions:"~15,000" },
+  destination: { name:"Destination", price:159, duration:"30 days", impressions:"~40,000" }
 };
 
 let selectedPkg = null;
@@ -382,7 +382,7 @@ function populateReview() {
   document.getElementById("rev-impressions").textContent = pkg.impressions;
   document.getElementById("rev-targeting").textContent = targeting;
   document.getElementById("rev-contact").textContent = document.getElementById("f-email").value;
-  document.getElementById("rev-total").textContent = "$"+pkg.price+" USD";
+  document.getElementById("rev-total").textContent = "£"+pkg.price+" GBP";
 
   const revImg = document.getElementById("rev-img");
   if (imageBase64) { revImg.src = imageBase64; revImg.style.display = "block"; }
@@ -425,7 +425,7 @@ async function submitAd() {
     window.scrollTo(0,0);
   } catch(e) {
     // Fallback: open mailto so submission still works
-    const body = `Ad Submission\n\nPackage: ${payload.package_name} ($${payload.price_usd} USD)\nBusiness: ${payload.business_name}\nContact: ${payload.contact_name}\nEmail: ${payload.advertiser_email}\n\nHeadline: ${payload.headline}\nBody: ${payload.body||"—"}\nCTA: ${payload.cta_label} → ${payload.cta_url}\nTargeting: ${payload.target_city||""}${payload.target_city&&payload.target_country?", ":""}${payload.target_country||"All countries"}`;
+    const body = `Ad Submission\n\nPackage: ${payload.package_name} (£${payload.price_usd} GBP)\nBusiness: ${payload.business_name}\nContact: ${payload.contact_name}\nEmail: ${payload.advertiser_email}\n\nHeadline: ${payload.headline}\nBody: ${payload.body||"—"}\nCTA: ${payload.cta_label} → ${payload.cta_url}\nTargeting: ${payload.target_city||""}${payload.target_city&&payload.target_country?", ":""}${payload.target_country||"All countries"}`;
     window.location.href = "mailto:locate@locatecommunity.com?subject="+encodeURIComponent("Ad Submission — "+payload.package_name)+"&body="+encodeURIComponent(body);
     btn.disabled = false;
     btn.textContent = "Submit ad request";
