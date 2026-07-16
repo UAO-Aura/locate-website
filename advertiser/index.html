@@ -126,26 +126,8 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
       <div style="font-size:14px;color:var(--ink2)">Flat-rate pricing — no bidding, no surprises. All packages include full analytics.</div>
     </div>
 
-    <div class="pkg-grid">
-      <div class="pkg-card" id="pkg-starter" onclick="selectPackage('starter')">
-        <div class="pkg-check">✓</div>
-        <div class="pkg-name">Starter</div>
-        <div class="pkg-price">£39<span> GBP</span></div>
-        <div class="pkg-desc">7 days in feed · ~5,000 impressions<br>Great for local businesses making their first move.</div>
-      </div>
-      <div class="pkg-card popular" id="pkg-explorer" onclick="selectPackage('explorer')">
-        <div class="pkg-popular-tag">Most popular</div>
-        <div class="pkg-check">✓</div>
-        <div class="pkg-name">Explorer</div>
-        <div class="pkg-price">£79<span> GBP</span></div>
-        <div class="pkg-desc">14 days in feed · ~15,000 impressions<br>Reach travellers across your region.</div>
-      </div>
-      <div class="pkg-card" id="pkg-destination" onclick="selectPackage('destination')">
-        <div class="pkg-check">✓</div>
-        <div class="pkg-name">Destination</div>
-        <div class="pkg-price">£159<span> GBP</span></div>
-        <div class="pkg-desc">30 days in feed · ~40,000 impressions<br>Maximum exposure for hotels and services.</div>
-      </div>
+    <div class="pkg-grid" id="pkg-grid">
+      <div style="color:var(--ink3);padding:32px;text-align:center;grid-column:1/-1">Loading packages…</div>
     </div>
 
     <div class="btn-row">
@@ -266,20 +248,20 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
     </div>
 
     <div style="background:rgba(58,100,88,0.08);border:1px solid rgba(58,100,88,0.2);border-radius:12px;padding:16px 20px;font-size:13px;color:var(--ink2);line-height:1.65;margin-bottom:28px">
-      After submitting, a member of our team will review your ad and email you a payment link within 24 hours. Your ad goes live once payment is confirmed.
+      You will complete payment securely with Stripe next. After payment, our team reviews your ad (typically within 24 hours) before it goes live in the feed.
     </div>
 
     <div class="btn-row">
       <button class="btn-secondary" onclick="goStep(2)">← Edit</button>
-      <button class="btn-primary" id="btn-submit" onclick="submitAd()">Submit ad request</button>
+      <button class="btn-primary" id="btn-submit" onclick="submitAd()">Continue to payment →</button>
     </div>
   </div>
 
-  <!-- Success -->
+  <!-- Success (return from Stripe) -->
   <div id="step-success">
     <div class="success-icon">✓</div>
-    <div class="success-title">Ad submitted</div>
-    <div class="success-sub">Thank you. Our team will review your ad and email you a payment link at <strong id="suc-email"></strong> within 24 hours.</div>
+    <div class="success-title">Payment received</div>
+    <div class="success-sub">Thank you. Our team will review your ad and email <strong id="suc-email">you</strong> once it is live — typically within 24 hours.</div>
     <div style="text-align:center">
       <a href="/advertise" style="display:inline-block;padding:12px 28px;background:var(--sage);border-radius:100px;font-size:14px;font-weight:600;color:#D8EDE7;text-decoration:none">Back to advertising</a>
     </div>
@@ -290,21 +272,37 @@ body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(
 <div id="toast"></div>
 
 <script>
-const API = window.LOCATE_API_URL || "https://locate-api-xytb.onrender.com";
-
-const packages = {
-  starter:     { name:"Starter",     price:39,  duration:"7 days",  impressions:"~5,000" },
-  explorer:    { name:"Explorer",    price:79,  duration:"14 days", impressions:"~15,000" },
-  destination: { name:"Destination", price:159, duration:"30 days", impressions:"~40,000" }
-};
+const API = window.LOCATE_API_URL || localStorage.getItem("locate_api_url") || "https://locate-api-xytb.onrender.com";
 
 let selectedPkg = null;
-let imageBase64 = null;
+let imagePreviewUrl = null;
+let apiPackages = [];
 
-function selectPackage(key) {
-  selectedPkg = key;
+async function loadPackages() {
+  const grid = document.getElementById("pkg-grid");
+  const res = await fetch(API + "/api/ads/packages").then(r => r.json()).catch(() => null);
+  if (!res?.packages?.length) {
+    grid.innerHTML = `<div style="color:var(--ink3);padding:32px;text-align:center;grid-column:1/-1">Could not load packages from the API. Please refresh.</div>`;
+    return;
+  }
+  apiPackages = res.packages;
+  grid.innerHTML = apiPackages.map((p, i) => `
+    <div class="pkg-card${i === 1 ? " popular" : ""}" id="pkg-${p.id}" onclick="selectPackageById('${p.id}')">
+      ${i === 1 ? `<div class="pkg-popular-tag">Most popular</div>` : ""}
+      <div class="pkg-check">✓</div>
+      <div class="pkg-name">${p.name}</div>
+      <div class="pkg-price">$${Number(p.price_usd)}<span> USD</span></div>
+      <div class="pkg-desc">${p.description || ""}<br>${p.duration_days} days · ~${Number(p.impressions || 0).toLocaleString()} impressions</div>
+    </div>`).join("");
+}
+
+function selectPackageById(id) {
+  const pkg = apiPackages.find(p => p.id === id);
+  if (!pkg) return;
+  selectedPkg = pkg;
   document.querySelectorAll(".pkg-card").forEach(c => c.classList.remove("selected"));
-  document.getElementById("pkg-"+key).classList.add("selected");
+  const el = document.getElementById("pkg-" + pkg.id);
+  if (el) el.classList.add("selected");
   document.getElementById("btn-1-next").disabled = false;
 }
 
@@ -356,19 +354,19 @@ function handleImage(input) {
   if (file.size > 5 * 1024 * 1024) { toast("Image must be under 5 MB.", "error"); return; }
   const reader = new FileReader();
   reader.onload = e => {
-    imageBase64 = e.target.result;
+    imagePreviewUrl = e.target.result;
     const img = document.getElementById("img-preview");
-    img.src = imageBase64;
+    img.src = imagePreviewUrl;
     img.style.display = "block";
     document.querySelector(".upload-label").style.display = "none";
-    document.getElementById("prev-img").src = imageBase64;
+    document.getElementById("prev-img").src = imagePreviewUrl;
     document.getElementById("prev-img").style.display = "block";
   };
   reader.readAsDataURL(file);
 }
 
 function populateReview() {
-  const pkg = packages[selectedPkg];
+  if (!selectedPkg) { toast("Please select a package.", "error"); return; }
   const country = document.getElementById("f-country").value.trim();
   const city = document.getElementById("f-city").value.trim();
   const targeting = city && country ? `${city}, ${country}` : country || city || "All countries";
@@ -377,58 +375,54 @@ function populateReview() {
   document.getElementById("rev-headline").textContent = document.getElementById("f-headline").value;
   document.getElementById("rev-body").textContent = document.getElementById("f-body").value;
   document.getElementById("rev-cta").textContent = document.getElementById("f-cta-label").value;
-  document.getElementById("rev-package").textContent = pkg.name;
-  document.getElementById("rev-duration").textContent = pkg.duration;
-  document.getElementById("rev-impressions").textContent = pkg.impressions;
+  document.getElementById("rev-package").textContent = selectedPkg.name;
+  document.getElementById("rev-duration").textContent = selectedPkg.duration_days + " days";
+  document.getElementById("rev-impressions").textContent = "~" + Number(selectedPkg.impressions || 0).toLocaleString();
   document.getElementById("rev-targeting").textContent = targeting;
   document.getElementById("rev-contact").textContent = document.getElementById("f-email").value;
-  document.getElementById("rev-total").textContent = "£"+pkg.price+" GBP";
+  document.getElementById("rev-total").textContent = "$" + Number(selectedPkg.price_usd) + " USD";
 
   const revImg = document.getElementById("rev-img");
-  if (imageBase64) { revImg.src = imageBase64; revImg.style.display = "block"; }
+  if (imagePreviewUrl) { revImg.src = imagePreviewUrl; revImg.style.display = "block"; }
   else { revImg.style.display = "none"; }
 }
 
 async function submitAd() {
+  if (!selectedPkg?.id) { toast("Please select a package.", "error"); return; }
   const btn = document.getElementById("btn-submit");
   btn.disabled = true;
-  btn.textContent = "Submitting…";
+  btn.textContent = "Redirecting to Stripe…";
 
   const payload = {
-    package_name:    packages[selectedPkg].name,
-    price_usd:       packages[selectedPkg].price,
-    business_name:   document.getElementById("f-business").value.trim(),
-    contact_name:    document.getElementById("f-contact").value.trim(),
-    advertiser_email:document.getElementById("f-email").value.trim(),
-    headline:        document.getElementById("f-headline").value.trim(),
-    body:            document.getElementById("f-body").value.trim(),
-    cta_label:       document.getElementById("f-cta-label").value.trim(),
-    cta_url:         document.getElementById("f-cta-url").value.trim(),
-    target_country:  document.getElementById("f-country").value.trim(),
-    target_city:     document.getElementById("f-city").value.trim(),
-    image_base64:    imageBase64 || null,
+    package_id:     selectedPkg.id,
+    business_name:  document.getElementById("f-business").value.trim(),
+    contact_name:   document.getElementById("f-contact").value.trim(),
+    email:          document.getElementById("f-email").value.trim(),
+    headline:       document.getElementById("f-headline").value.trim(),
+    body:           document.getElementById("f-body").value.trim(),
+    cta_label:      document.getElementById("f-cta-label").value.trim() || "Learn more",
+    cta_url:        document.getElementById("f-cta-url").value.trim(),
+    target_country: document.getElementById("f-country").value.trim(),
+    target_city:    document.getElementById("f-city").value.trim(),
+    // Preview-only local uploads are not uploaded yet; image_url must be https when provided
+    image_url:      null,
   };
 
   try {
-    const res = await fetch(API+"/api/ads/submit", {
+    const res = await fetch(API + "/api/ads/checkout", {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error("Server error");
-
-    // Show success
-    [1,2,3].forEach(i => document.getElementById("step-"+i).style.display = "none");
-    document.getElementById("step-success").style.display = "block";
-    document.getElementById("suc-email").textContent = payload.advertiser_email;
-    document.querySelectorAll(".step").forEach(s => { s.classList.remove("active"); s.classList.add("done"); });
-    window.scrollTo(0,0);
-  } catch(e) {
-    // Fallback: open mailto so submission still works
-    const body = `Ad Submission\n\nPackage: ${payload.package_name} (£${payload.price_usd} GBP)\nBusiness: ${payload.business_name}\nContact: ${payload.contact_name}\nEmail: ${payload.advertiser_email}\n\nHeadline: ${payload.headline}\nBody: ${payload.body||"—"}\nCTA: ${payload.cta_label} → ${payload.cta_url}\nTargeting: ${payload.target_city||""}${payload.target_city&&payload.target_country?", ":""}${payload.target_country||"All countries"}`;
-    window.location.href = "mailto:locate@locatecommunity.com?subject="+encodeURIComponent("Ad Submission — "+payload.package_name)+"&body="+encodeURIComponent(body);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.checkout_url) {
+      throw new Error(data.error || "Could not start checkout.");
+    }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    toast(e.message || "Could not reach payment. Please try again.", "error");
     btn.disabled = false;
-    btn.textContent = "Submit ad request";
+    btn.textContent = "Continue to payment →";
   }
 }
 
@@ -437,6 +431,18 @@ function toast(msg, type="") {
   el.textContent = msg; el.className = "show "+(type||"");
   setTimeout(() => el.className = "", 3500);
 }
+
+// Stripe success return
+const params = new URLSearchParams(window.location.search);
+if (params.get("status") === "success" || params.get("session_id")) {
+  [1,2,3].forEach(i => { document.getElementById("step-"+i).style.display = "none"; });
+  document.getElementById("step-success").style.display = "block";
+  document.querySelectorAll(".step").forEach(s => { s.classList.remove("active"); s.classList.add("done"); });
+} else if (params.get("status") === "cancelled") {
+  toast("Checkout cancelled. You can try again when ready.", "error");
+}
+
+loadPackages();
 </script>
 </body>
 </html>
