@@ -291,7 +291,7 @@ async function loadPackages() {
       ${i === 1 ? `<div class="pkg-popular-tag">Most popular</div>` : ""}
       <div class="pkg-check">✓</div>
       <div class="pkg-name">${p.name}</div>
-      <div class="pkg-price">$${Number(p.price_usd)}<span> USD</span></div>
+      <div class="pkg-price">£${Number(p.price ?? p.price_usd)}<span> ${(p.currency || "GBP").toUpperCase()}</span></div>
       <div class="pkg-desc">${p.description || ""}<br>${p.duration_days} days · ~${Number(p.impressions || 0).toLocaleString()} impressions</div>
     </div>`).join("");
 }
@@ -380,7 +380,9 @@ function populateReview() {
   document.getElementById("rev-impressions").textContent = "~" + Number(selectedPkg.impressions || 0).toLocaleString();
   document.getElementById("rev-targeting").textContent = targeting;
   document.getElementById("rev-contact").textContent = document.getElementById("f-email").value;
-  document.getElementById("rev-total").textContent = "$" + Number(selectedPkg.price_usd) + " USD";
+  document.getElementById("rev-total").textContent =
+    "£" + Number(selectedPkg.price ?? selectedPkg.price_usd) + " " +
+    (selectedPkg.currency || "GBP").toUpperCase();
 
   const revImg = document.getElementById("rev-img");
   if (imagePreviewUrl) { revImg.src = imagePreviewUrl; revImg.style.display = "block"; }
