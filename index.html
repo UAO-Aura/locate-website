@@ -987,6 +987,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="nav-item" onclick="showPage('guide-credits',event)">Guide credits<span class="nav-badge" id="guide-credits-badge" style="display:none"></span></button>
     <div class="nav-section">Tools</div>
     <button class="nav-item" onclick="showPage('email',event)">Email users</button>
+    <button class="nav-item" onclick="showPage('baloshield',event)">BaloShield<span class="nav-badge" id="baloshield-badge" style="display:none"></span></button>
     <button class="nav-item" onclick="showPage('audit',event)">Audit log</button>
     <div class="sidebar-footer">
       <div class="sidebar-user" id="sidebar-user"></div>
@@ -1091,7 +1092,43 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <div id="guide-credits-list"><div style="color:var(--ink3);padding:40px;text-align:center"><span class="spinner"></span></div></div>
     </div>
-    <div class="page" id="page-email">
+        <div class="page" id="page-baloshield">
+      <div class="page-title">BaloShield</div>
+      <div class="page-sub">Spam and bot blocks from registration, login, and content checks. Scores, reasons, IPs, and linked users.</div>
+      <div class="stats-grid" id="baloshield-stats"><div class="stat-card"><span class="spinner"></span></div></div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-neutral" onclick="loadBaloshieldEvents('true')" id="bs-filter-true">Blocked</button>
+        <button class="btn btn-neutral" onclick="loadBaloshieldEvents('all')" id="bs-filter-all">All events</button>
+        <button class="btn btn-neutral" onclick="loadBaloshieldBlocks()">Blocked IPs</button>
+        <input class="search-input" id="bs-search" placeholder="Search IP, email, reason…" onkeydown="if(event.key==='Enter')loadBaloshieldEvents(window._bsBlockedFilter||'true')">
+        <select id="bs-action" class="search-input" style="width:auto" onchange="loadBaloshieldEvents(window._bsBlockedFilter||'true')">
+          <option value="">All actions</option>
+          <option value="register">Register</option>
+          <option value="google_register">Google register</option>
+          <option value="login">Login</option>
+          <option value="post">Post</option>
+          <option value="comment">Comment</option>
+          <option value="dm_message">DM</option>
+          <option value="story">Story</option>
+          <option value="follow">Follow</option>
+          <option value="report">Report</option>
+          <option value="repost">Repost</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header"><span class="table-title">Events</span></div>
+        <table><thead><tr><th>When</th><th>Action</th><th>Code</th><th>Reason</th><th>Score</th><th>IP</th><th>User</th></tr></thead>
+        <tbody id="baloshield-events-body"><tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr></tbody></table>
+      </div>
+      <div class="table-wrap" id="baloshield-blocks-wrap" style="display:none">
+        <div class="table-header"><span class="table-title">Active IP blocks</span>
+          <button class="btn btn-sm btn-neutral" onclick="manualBlockIp()">Block IP…</button>
+        </div>
+        <table><thead><tr><th>IP</th><th>Reason</th><th>Context</th><th>User</th><th>Blocked</th><th>Expires</th><th></th></tr></thead>
+        <tbody id="baloshield-blocks-body"></tbody></table>
+      </div>
+    </div>
+<div class="page" id="page-email">
       <div class="page-title">Email users</div><div class="page-sub">Send emails directly from this panel</div>
       <div style="max-width:600px">
         <div class="table-wrap" style="margin-bottom:20px">
@@ -1267,7 +1304,7 @@ async function doLogin() {
     document.getElementById("login-screen").classList.remove("active");
     document.getElementById("pub-nav").style.display="none";
     document.getElementById("app").classList.add("active");
-    loadDashboard(); loadReportsBadge(); loadGuideCreditsBadge();
+    loadDashboard(); loadReportsBadge(); loadGuideCreditsBadge(); loadBaloshieldBadge();
   } catch(e) { err.textContent="Could not reach server at: "+API+" — "+e.message; err.style.display="block"; btn.disabled=false; btn.textContent="Sign in"; }
 }
 
@@ -1301,7 +1338,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       document.getElementById("sidebar-user").textContent=res.user.display_name||res.user.username;
       document.getElementById("pub-nav").style.display="none";
       document.getElementById("app").classList.add("active");
-      loadDashboard(); loadReportsBadge(); loadGuideCreditsBadge();
+      loadDashboard(); loadReportsBadge(); loadGuideCreditsBadge(); loadBaloshieldBadge();
     } else {
       token=""; localStorage.removeItem("locate_admin_token");
       showPub(startPage);
@@ -1336,7 +1373,7 @@ function showPage(name, e) {
   document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
   document.getElementById("page-"+name).classList.add("active");
   if(e&&e.currentTarget) e.currentTarget.classList.add("active");
-  const loaders={dashboard:loadDashboard,reports:()=>loadReports("open"),posts:loadPosts,stories:loadStories,comments:loadComments,users:loadUsers,groups:loadGroups,email:loadEmailLog,audit:loadAudit,ads:()=>loadAds("pending"),"guide-credits":()=>loadGuideCredits("pending_admin")};
+  const loaders={dashboard:loadDashboard,reports:()=>loadReports("open"),posts:loadPosts,stories:loadStories,comments:loadComments,users:loadUsers,groups:loadGroups,email:loadEmailLog,audit:loadAudit,ads:()=>loadAds("pending"),"guide-credits":()=>loadGuideCredits("pending_admin"),baloshield:()=>loadBaloshieldEvents("true")};
   if(loaders[name]) loaders[name]();
 }
 
@@ -1470,7 +1507,7 @@ async function loadGuideCredits(status="pending_admin"){
 async function reviewGuideCredit(id,action){
   if(!confirm(action==="approve"?"Approve this credit? The guide's ad promotion will be extended.":"Reject this credit? It will not be applied."))return;
   const res=await api("PATCH",`/api/admin/guide-credits/${id}/review`,{action});
-  if(res&&res.ok){toast(action==="approve"?"Credit approved — ad time extended ✓":"Credit rejected","success");loadGuideCredits("pending_admin");loadGuideCreditsBadge();}
+  if(res&&res.ok){toast(action==="approve"?"Credit approved — ad time extended ✓":"Credit rejected","success");loadGuideCredits("pending_admin");loadGuideCreditsBadge(); loadBaloshieldBadge();}
   else toast(res?.error||"Action failed","error");
 }
 
@@ -1483,6 +1520,81 @@ async function sendEmailConfirmed(){closeModal("modal-email-preview");const toTy
 async function loadEmailLog(){const data=await api("GET","/api/admin/email/log");const tb=document.getElementById("email-log-body");if(!data?.logs?.length){tb.innerHTML=`<tr class="empty-row"><td colspan="4">No emails sent yet</td></tr>`;return;}tb.innerHTML=data.logs.map(e=>`<tr><td>${e.to_identifier||e.to_type||"—"}</td><td>${truncate(e.subject||"—",60)}</td><td>${e.sent_by_username||"admin"}</td><td>${formatDateShort(e.created_at)}</td></tr>`).join("");}
 
 // ── AUDIT ──────────────────────────────────────────────────────────────────────
+
+// ── BALOSHIELD ──────────────────────────────────────────────────────────────
+
+function showUserDetail(id){ if(typeof viewUserDetail==="function") return viewUserDetail(id); } }
+async function loadBaloshieldBadge(){const r=await api("GET","/api/admin/baloshield/stats");const b=document.getElementById("baloshield-badge");if(b&&r){const n=r.blocked_today||0;b.textContent=n||"";b.style.display=n?"":"none";}}
+async function loadBaloshieldStats(){
+  const data=await api("GET","/api/admin/baloshield/stats"); if(!data)return;
+  const g=document.getElementById("baloshield-stats");
+  if(!g)return;
+  g.innerHTML=`<div class="stat-card ${data.blocked_today>10?"urgent":""}"><div class="stat-num ${data.blocked_today>10?"red":""}">${data.blocked_today||0}</div><div class="stat-lbl">Blocked today</div></div>
+  <div class="stat-card"><div class="stat-num">${data.blocked_7d||0}</div><div class="stat-lbl">Blocked (7d)</div></div>
+  <div class="stat-card"><div class="stat-num">${data.blocked_ips||0}</div><div class="stat-lbl">Active IP blocks</div></div>
+  <div class="stat-card"><div class="stat-num">${data.signup_blocks_7d||0}</div><div class="stat-lbl">Signup blocks (7d)</div></div>
+  <div class="stat-card"><div class="stat-num">${data.blocked_total||0}</div><div class="stat-lbl">Total events</div></div>`;
+}
+async function loadBaloshieldEvents(blocked="true"){
+  window._bsBlockedFilter=blocked;
+  ["true","all"].forEach(s=>{const el=document.getElementById("bs-filter-"+s);if(el)el.style.background=s===blocked?"var(--sage)":"";});
+  const wrap=document.getElementById("baloshield-blocks-wrap"); if(wrap)wrap.style.display="none";
+  await loadBaloshieldStats(); loadBaloshieldBadge();
+  const q=document.getElementById("bs-search")?.value||"";
+  const action=document.getElementById("bs-action")?.value||"";
+  const tb=document.getElementById("baloshield-events-body");
+  tb.innerHTML=`<tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>`;
+  const params=new URLSearchParams({blocked,limit:"80"});
+  if(q)params.set("q",q); if(action)params.set("action",action);
+  const data=await api("GET","/api/admin/baloshield/events?"+params.toString());
+  if(!data?.events?.length){tb.innerHTML=`<tr class="empty-row"><td colspan="7">No BaloShield events</td></tr>`;return;}
+  tb.innerHTML=data.events.map(e=>{
+    const userLabel=e.user_username?`@${e.user_username}`:(e.email||e.username||"—");
+    const userLink=e.user_id?`<button class="btn btn-sm btn-neutral" onclick="showUserDetail('${e.user_id}')">${userLabel}</button>`:userLabel;
+    const score=e.score!=null?Number(e.score).toFixed(2):"—";
+    return `<tr>
+      <td>${formatDate(e.created_at)}</td>
+      <td><span class="badge badge-gray">${e.action}</span></td>
+      <td><span class="badge ${e.blocked?"badge-red":"badge-amber"}">${e.code}</span></td>
+      <td>${truncate(e.reason||"",80)}</td>
+      <td>${score}</td>
+      <td><code style="font-size:11px">${e.ip_address||"—"}</code></td>
+      <td>${userLink}</td>
+    </tr>`;
+  }).join("");
+}
+async function loadBaloshieldBlocks(){
+  const wrap=document.getElementById("baloshield-blocks-wrap"); if(wrap)wrap.style.display="";
+  await loadBaloshieldStats();
+  const tb=document.getElementById("baloshield-blocks-body");
+  tb.innerHTML=`<tr class="loading-row"><td colspan="7"><span class="spinner"></span></td></tr>`;
+  const data=await api("GET","/api/admin/baloshield/blocks");
+  if(!data?.blocks?.length){tb.innerHTML=`<tr class="empty-row"><td colspan="7">No active IP blocks</td></tr>`;return;}
+  tb.innerHTML=data.blocks.map(b=>{
+    const user=b.user_username?`@${b.user_username}`:(b.user_id?b.user_id.slice(0,8)+"…":"—");
+    return `<tr>
+      <td><code>${b.ip_address}</code></td>
+      <td>${truncate(b.reason||"",60)}</td>
+      <td>${b.context||"—"}</td>
+      <td>${b.user_id?`<button class="btn btn-sm btn-neutral" onclick="showUserDetail('${b.user_id}')">${user}</button>`:user}</td>
+      <td>${formatDate(b.blocked_at)}</td>
+      <td>${b.expires_at?formatDate(b.expires_at):"never"}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="unblockIp('${b.ip_address}')">Unblock</button></td>
+    </tr>`;
+  }).join("");
+}
+async function unblockIp(ip){
+  if(!confirm("Unblock "+ip+"?"))return;
+  const res=await api("DELETE","/api/admin/baloshield/blocks/"+encodeURIComponent(ip));
+  if(res?.ok){toast("IP unblocked","success");loadBaloshieldBlocks();} else toast(res?.error||"Failed","error");
+}
+async function manualBlockIp(){
+  const ip=prompt("IP address to block:"); if(!ip)return;
+  const reason=prompt("Reason:","Manual block by admin")||"Manual block by admin";
+  const hours=prompt("Duration (hours):","24")||"24";
+  const res=await api("POST","/api/admin/baloshield/blocks",{ip,reason,hours:Number(hours)});
+  if(res?.ok){toast("IP blocked","success");loadBaloshieldBlocks();} else toast(res?.error||"Failed","error");
+}
 async function loadAudit(){const tb=document.getElementById("audit-body");tb.innerHTML=`<tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr>`;const data=await api("GET","/api/admin/audit");if(!data?.logs?.length){tb.innerHTML=`<tr class="empty-row"><td colspan="5">No audit records</td></tr>`;return;}tb.innerHTML=data.logs.map(l=>`<tr><td><span class="badge badge-gray">${l.action}</span></td><td>${l.target_type||"—"} ${l.target_id?`<small style="color:var(--ink3)">${l.target_id.slice(0,8)}…</small>`:""}</td><td>${l.actor_username||"system"}</td><td><small style="color:var(--ink3)">${JSON.stringify(l.detail||{})}</small></td><td>${formatDate(l.created_at)}</td></tr>`).join("");}
 
 document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".modal-overlay.open").forEach(m=>m.classList.remove("open"));});
